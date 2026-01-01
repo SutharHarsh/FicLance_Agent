@@ -5,15 +5,10 @@ fastapi
 uvicorn[standard]
 
 # ===============================
-# CrewAI Framework
+# CrewAI Framework (with Gemini)
 # ===============================
-crewai
+crewai[google-genai]
 crewai-tools
-
-# ===============================
-# LLM / Gemini Integration
-# ===============================
-google-generativeai
 
 # ===============================
 # Environment Configuration
