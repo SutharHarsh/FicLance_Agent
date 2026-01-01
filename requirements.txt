@@ -1,0 +1,36 @@
+# ===============================
+# Core Web Framework
+# ===============================
+fastapi
+uvicorn[standard]
+
+# ===============================
+# CrewAI Framework
+# ===============================
+crewai
+crewai-tools
+
+# ===============================
+# LLM / Gemini Integration
+# ===============================
+google-generativeai
+
+# ===============================
+# Environment Configuration
+# ===============================
+python-dotenv
+
+# ===============================
+# HTTP & External Requests
+# ===============================
+requests
+
+# ===============================
+# Browser Automation
+# ===============================
+browserbase
+
+# ===============================
+# Caching / Messaging
+# ===============================
+redis
