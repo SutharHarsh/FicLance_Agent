@@ -59,7 +59,7 @@ def run_agent3_technical(repo_path: str, requirements: list):
         responsiveness=responsiveness,
     )
 
-    gemini = GeminiLLM(api_key=os.getenv("GEMINI_API_KEY"))
+    gemini = GeminiLLM()
     raw = gemini(prompt)
 
     # ----------------------------------
