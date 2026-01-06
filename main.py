@@ -1,3 +1,4 @@
+from typing import Optional
 from unittest import result
 from fastapi import FastAPI
 from crewai import LLM, Crew, Process
