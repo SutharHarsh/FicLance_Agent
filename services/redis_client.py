@@ -31,22 +31,31 @@ class RedisCache:
     def get(self, key: str) -> Optional[str]:
         if self._use_memory:
             return self._memory.get(key)
-        r = requests.get(f"{self.url}/get/{key}", headers=self._headers(), timeout=30)
-        r.raise_for_status()
-        return r.json().get("result")
+        try:
+            r = requests.get(f"{self.url}/get/{key}", headers=self._headers(), timeout=10)
+            r.raise_for_status()
+            return r.json().get("result")
+        except Exception as e:
+            print(f"Redis Cache GET Error (Key: {key}): {str(e)}")
+            return self._memory.get(key) # Fallback to memory
 
     def set(self, key: str, value: str) -> dict:
         if self._use_memory:
             self._memory[key] = value
             return {"result": "OK"}
-        r = requests.post(
-            f"{self.url}/set/{key}",
-            json={"value": value},
-            headers=self._headers(),
-            timeout=30,
-        )
-        r.raise_for_status()
-        return r.json()
+        try:
+            r = requests.post(
+                f"{self.url}/set/{key}",
+                json={"value": value},
+                headers=self._headers(),
+                timeout=10,
+            )
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            print(f"Redis Cache SET Error (Key: {key}): {str(e)}")
+            self._memory[key] = value # Fallback to memory
+            return {"result": "MEMORY_FALLBACK"}
 
     def exists(self, key: str) -> bool:
         if self._use_memory:

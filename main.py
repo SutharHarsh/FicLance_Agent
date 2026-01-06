@@ -38,7 +38,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-redis_client = Redis.from_url(os.getenv("UPSTASH_REDIS_URL"))
+def init_redis():
+    url = os.getenv("UPSTASH_REDIS_URL")
+    if not url:
+        print("WARNING: UPSTASH_REDIS_URL is missing. TCP Redis client will be disabled.")
+        return None
+    try:
+        if not (url.startswith("redis://") or url.startswith("rediss://")):
+             print(f"ERROR: UPSTASH_REDIS_URL must start with 'redis://' or 'rediss://'. Got: {url[:10]}...")
+             return None
+        return Redis.from_url(url, socket_timeout=5, decode_responses=True)
+    except Exception as e:
+        print(f"CRITICAL: Failed to initialize Redis TCP client: {str(e)}")
+        return None
+
+redis_client = init_redis()
 
 import json
 import re
@@ -101,11 +115,13 @@ class Agent1Output(BaseModel):
 class Agent2Data(BaseModel):
     SimulationId: str
     Question: str
+    Context: Optional[dict] = None
 
 
 class Agent3Data(BaseModel):
     RepoURL: str
     SimulationId: str
+    Context: Optional[dict] = None
 
 
 # -------------------------------
@@ -156,14 +172,16 @@ async def run_agent1(item: Agent1Data):
 @app.post("/messages")
 async def run_agent2(item: Agent2Data):
 
-    redis_data = redis_cache.get(f"agent1_context:{item.SimulationId}")
-    if not redis_data:
-        return {"error": "Run /requirements first before using /messages"}
-
-    context = json.loads(redis_data)
+    # Try to get context from payload first, then Redis
+    context_data = item.Context
+    if not context_data:
+        redis_data = redis_cache.get(f"agent1_context:{item.SimulationId}")
+        if not redis_data:
+            return {"error": "No context provided and /requirements not found in cache."}
+        context_data = json.loads(redis_data)
 
     # Convert the full object into a compact JSON string
-    agent1_context = json.dumps(context, indent=2)
+    agent1_context = json.dumps(context_data, indent=2)
 
     user_question = item.Question
 
@@ -210,11 +228,14 @@ async def run_agent3(item: Agent3Data):
         return {"error": "Failed to clone repository"}
     repo_path = PROJECT_PATH
 
-    # Load requirements (scoped per simulation)
-    redis_data = redis_cache.get(f"agent1_context:{item.SimulationId}")
-    if not redis_data:
-        return {"error": "Run /requirements first for this simulation"}
-    context_data = json.loads(redis_data)
+    # Load requirements (try payload first, then Redis)
+    context_data = item.Context
+    if not context_data:
+        redis_data = redis_cache.get(f"agent1_context:{item.SimulationId}")
+        if not redis_data:
+             return {"error": "No context provided and /requirements not found in cache."}
+        context_data = json.loads(redis_data)
+    
     requirements = context_data.get("key_requirements", [])
     if not requirements:
         raw = context_data.get("raw_acceptance_criteria", "")
