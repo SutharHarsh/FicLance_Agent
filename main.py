@@ -190,7 +190,7 @@ async def run_agent2(item: Agent2Data):
         gemini_llm,
         context_string=agent1_context,
         question=user_question,
-        client_name=context.get("client_name", "Client"),
+        client_name=context_data.get("client_name", "Client"),
     )
 
     crew = Crew(
