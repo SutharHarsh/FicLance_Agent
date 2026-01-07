@@ -32,11 +32,19 @@ class RedisCache:
         if self._use_memory:
             return self._memory.get(key)
         try:
-            r = requests.get(f"{self.url}/get/{key}", headers=self._headers(), timeout=10)
+            # Using command array format for consistency and robustness
+            r = requests.post(
+                self.url,
+                json=["GET", key],
+                headers=self._headers(),
+                timeout=10
+            )
             r.raise_for_status()
             return r.json().get("result")
         except Exception as e:
             print(f"Redis Cache GET Error (Key: {key}): {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response content: {e.response.text}")
             return self._memory.get(key) # Fallback to memory
 
     def set(self, key: str, value: str) -> dict:
@@ -44,54 +52,75 @@ class RedisCache:
             self._memory[key] = value
             return {"result": "OK"}
         try:
+            # Upstash REST API expects a command array for POST to the base URL
+            # Format: ["SET", "key", "value"]
             r = requests.post(
-                f"{self.url}/set/{key}",
-                json={"value": value},
+                self.url,
+                json=["SET", key, value],
                 headers=self._headers(),
                 timeout=10,
             )
             r.raise_for_status()
+            
+            # Upstash returns {"result": "OK"} for successful SET
             return r.json()
         except Exception as e:
             print(f"Redis Cache SET Error (Key: {key}): {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response content: {e.response.text}")
             self._memory[key] = value # Fallback to memory
             return {"result": "MEMORY_FALLBACK"}
 
     def exists(self, key: str) -> bool:
         if self._use_memory:
             return key in self._memory
-        r = requests.get(
-            f"{self.url}/exists/{key}", headers=self._headers(), timeout=30
-        )
-        r.raise_for_status()
-        return r.json().get("result") == 1
+        try:
+            r = requests.post(
+                self.url,
+                json=["EXISTS", key],
+                headers=self._headers(),
+                timeout=10
+            )
+            r.raise_for_status()
+            return r.json().get("result") == 1
+        except Exception as e:
+            print(f"Redis Cache EXISTS Error (Key: {key}): {str(e)}")
+            return key in self._memory
 
     def delete(self, key: str) -> dict:
-        """
-        Delete a key. Upstash REST supports /del/{key} as a POST.
-        """
         if self._use_memory:
             self._memory.pop(key, None)
             return {"result": 1}
-        r = requests.post(f"{self.url}/del/{key}", headers=self._headers(), timeout=30)
-        r.raise_for_status()
-        return r.json()
+        try:
+            r = requests.post(
+                self.url,
+                json=["DEL", key],
+                headers=self._headers(),
+                timeout=10
+            )
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            print(f"Redis Cache DEL Error (Key: {key}): {str(e)}")
+            return {"result": 0}
 
     def keys(self, pattern: str):
-        """
-        NOT all Upstash plans allow scan via REST. If not available you can store
-        metadata of keys yourself. This function attempts a 'scan' endpoint if present.
-        """
         if self._use_memory:
             # Simple prefix match for memory mode
             prefix = pattern.rstrip("*")
             return [k for k in self._memory.keys() if k.startswith(prefix)]
-        r = requests.get(
-            f"{self.url}/scan/{pattern}", headers=self._headers(), timeout=30
-        )
-        if r.status_code == 200:
+        try:
+            r = requests.post(
+                self.url,
+                json=["KEYS", pattern],
+                headers=self._headers(),
+                timeout=10
+            )
+            r.raise_for_status()
             return r.json().get("result", [])
-        return []
+        except Exception as e:
+            print(f"Redis Cache KEYS Error (Pattern: {pattern}): {str(e)}")
+            return []
 
 
 redis_cache = RedisCache()
