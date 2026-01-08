@@ -162,7 +162,12 @@ async def run_agent1(item: Agent1Data):
     compressed_memory = compress_agent1_context(requirements_text, metadata)
 
     # Store context per simulation to avoid cross-chat leakage
-    redis_cache.set(f"agent1_context:{item.SimulationId}", compressed_memory)
+    # Set 7-day TTL (604800 seconds) to auto-delete old contexts and reduce Redis storage
+    redis_cache.set(
+        f"agent1_context:{item.SimulationId}", 
+        compressed_memory,
+        ex=604800  # 7 days in seconds (auto-expire)
+    )
 
     return {"message": parsed}
 

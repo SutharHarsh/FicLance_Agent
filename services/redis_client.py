@@ -47,16 +47,29 @@ class RedisCache:
                 print(f"Response content: {e.response.text}")
             return self._memory.get(key) # Fallback to memory
 
-    def set(self, key: str, value: str) -> dict:
+    def set(self, key: str, value: str, ex: Optional[int] = None) -> dict:
+        """
+        Set a key-value pair in Redis with optional expiry.
+        
+        Args:
+            key: Redis key
+            value: Value to store
+            ex: Expiry time in seconds (optional)
+        """
         if self._use_memory:
             self._memory[key] = value
             return {"result": "OK"}
         try:
             # Upstash REST API expects a command array for POST to the base URL
-            # Format: ["SET", "key", "value"]
+            # Format: ["SET", "key", "value"] or ["SET", "key", "value", "EX", seconds]
+            if ex:
+                command = ["SET", key, value, "EX", str(ex)]
+            else:
+                command = ["SET", key, value]
+                
             r = requests.post(
                 self.url,
-                json=["SET", key, value],
+                json=command,
                 headers=self._headers(),
                 timeout=10,
             )
